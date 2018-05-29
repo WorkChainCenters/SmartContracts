@@ -2,7 +2,7 @@ pragma solidity 0.4.24;
 /**
 * @title TECH Token Contract
 * @dev ERC-20 Token Standar Compliant
-* Contact: WorkChainCenters@gmail.com  www.WorkChainCenters.com 
+* Contact: WorkChainCenters@gmail.com  www.WorkChainCenters.io
 */
 
 /**
@@ -225,14 +225,14 @@ contract TECH is ERC20Token {
     uint8 public decimals = 18;
     string public symbol = 'TECH';
     string public version = '0.3';
-    
+
     /**
     * @notice token contructor.
     */
     constructor() public {
         totalSupply = 41600000 * 10 ** uint256(decimals); //41.600.000 tokens initial supply;
         balances[msg.sender] = totalSupply;
-        emit Transfer(0, msg.sender, totalSupply);       
+        emit Transfer(0, msg.sender, totalSupply);
     }
 
     /**
@@ -243,7 +243,7 @@ contract TECH is ERC20Token {
         _address.transfer(msg.sender,remainder); //Transfer tokens to admin
     }
 
-    
+
     /**
     * @notice this contract will revert on direct non-function calls, also it's not payable
     * @dev Function to handle callback calls to contract

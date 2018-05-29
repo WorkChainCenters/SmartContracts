@@ -2,7 +2,7 @@ pragma solidity 0.4.24;
 /**
 * @title TECH ICO Contract
 * @dev TECH is an ERC-20 Standar Compliant Token
-* Contact: WorkChainCenters@gmail.com  www.WorkChainCenters.com
+* Contact: WorkChainCenters@gmail.com  www.WorkChainCenters.io
 */
 
 /**
