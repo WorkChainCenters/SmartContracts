@@ -54,6 +54,7 @@ contract ERC20Basic {
  * @notice This contract is administered
  */
 contract admined {
+    //mapping to user levels
     mapping(address => uint8) public level;
     //0 normal user
     //1 basic admin
@@ -64,14 +65,14 @@ contract admined {
     */
     constructor() internal {
         level[msg.sender] = 2; //Set initial admin to contract creator
-        emit AdminshipUpdated(msg.sender,2);
+        emit AdminshipUpdated(msg.sender,2); //Log the admin set
     }
 
     /**
     * @dev This modifier limits function execution to the admin
     */
     modifier onlyAdmin(uint8 _level) { //A modifier to define admin-only functions
-        require(level[msg.sender] >= _level );
+        require(level[msg.sender] >= _level ); //It require the user level to be more or equal than _level
         _;
     }
 
@@ -80,9 +81,9 @@ contract admined {
     * @param _newAdmin The new admin of the contract
     */
     function adminshipLevel(address _newAdmin, uint8 _level) onlyAdmin(2) public { //Admin can be set
-        require(_newAdmin != address(0));
-        level[_newAdmin] = _level;
-        emit AdminshipUpdated(_newAdmin,_level);
+        require(_newAdmin != address(0)); //The new admin must not be zero address
+        level[_newAdmin] = _level; //New level is set
+        emit AdminshipUpdated(_newAdmin,_level); //Log the admin set
     }
 
     /**
@@ -95,7 +96,7 @@ contract admined {
 contract TECHICO is admined {
 
     using SafeMath for uint256;
-    //This ico have 5 possible states
+    //This ico have 5 possible states and a Successful state
     enum State {
         Stage1,
         Stage2,
@@ -118,14 +119,14 @@ contract TECHICO is admined {
     uint256 public hardCap = 31200000 * (10 ** 18); // 31.200.000 tokens
     mapping(address => uint256) public pending; //tokens pending to being transfered
     //Contract details
-    address public creator;
-    string public version = '0.1';
+    address public creator; //Creator address
+    string public version = '0.1'; //Contract version
 
     //User rights handlers
     mapping (address => bool) public whiteList; //List of allowed to send eth
 
     //Price related
-    uint256 rate = 3000;
+    uint256 rate = 3000; //Tokens per ether unit
 
     //events for log
     event LogFundrisingInitialized(address _creator);
@@ -149,80 +150,83 @@ contract TECHICO is admined {
         creator = msg.sender; //Creator is set from deployer address
         tokenReward = _addressOfTokenUsedAsReward; //Token address is set during deployment
 
-        emit LogFundrisingInitialized(creator);
+        emit LogFundrisingInitialized(creator); //Log contract initialization
     }
 
     /**
     * @notice Whitelist function
+    * @param _user User address to be modified on list
+    * @param _flag Whitelist status to set
     */
     function whitelistAddress(address _user, bool _flag) public onlyAdmin(1) {
-        whiteList[_user] = _flag;
+        whiteList[_user] = _flag; //Assign status to user on whitelist
     }
 
     /**
     * @notice contribution handler
     */
     function contribute() public notFinished payable {
-        require(now > SaleStart);
+        require(now > SaleStart); //This time must be equal or greater than the start time
         require(whiteList[msg.sender] == true); //User must be whitelisted
 
         totalRaised = totalRaised.add(msg.value); //ether received updated
 
-        //base tokens amount calculation
-        uint256 tokenBought = msg.value.mul(rate);
+        uint256 tokenBought = msg.value.mul(rate); //base tokens amount calculation
+
         //Bonus calculation
-        if(state == State.Stage1){
+        if(state == State.Stage1){ //If current stage is 1
+            //+20% bonus
+            tokenBought = tokenBought.mul(12);
+            tokenBought = tokenBought.div(10); // 1.2 = 120% = 100+20%
 
-             tokenBought = tokenBought.mul(12);
-             tokenBought = tokenBought.div(10); // 1.2 = 120% = 100+20%
+        } else if(state == State.Stage2) { //If current stage is 2
+            //+15% bonus
+            tokenBought = tokenBought.mul(115);
+            tokenBought = tokenBought.div(100); // 1.15 = 115% = 100+15%
 
-        } else if(state == State.Stage2) {
+        } else if(state == State.Stage3) { //If current stage is 3
+            //+10 bonus
+            tokenBought = tokenBought.mul(11);
+            tokenBought = tokenBought.div(10); // 1.1 = 110% = 100+10%
 
-             tokenBought = tokenBought.mul(115);
-             tokenBought = tokenBought.div(100); // 1.15 = 115% = 100+15%
-
-        } else if(state == State.Stage3) {
-
-             tokenBought = tokenBought.mul(11);
-             tokenBought = tokenBought.div(10); // 1.1 = 110% = 100+10%
-
-        } else if(state == State.Stage4) {
-
-             tokenBought = tokenBought.mul(105);
-             tokenBought = tokenBought.div(100); // 1.05 = 105% = 100+5%
+        } else if(state == State.Stage4) { //If current stage is 4
+            //+5% bonus
+            tokenBought = tokenBought.mul(105);
+            tokenBought = tokenBought.div(100); // 1.05 = 105% = 100+5%
 
         }
 
-        require(totalDistributed.add(tokenBought) <= hardCap);
+        require(totalDistributed.add(tokenBought) <= hardCap); //The total amount after sum up must not be more than the hardCap
 
-        pending[msg.sender] = pending[msg.sender].add(tokenBought);
-        totalDistributed = totalDistributed.add(tokenBought); //whole tokens sold updated
+        pending[msg.sender] = pending[msg.sender].add(tokenBought); //Pending balance to distribute is updated
+        totalDistributed = totalDistributed.add(tokenBought); //Whole tokens sold updated
 
-        emit LogFundingReceived(msg.sender, msg.value, totalRaised);
+        emit LogFundingReceived(msg.sender, msg.value, totalRaised); //Log the purchase
 
-        checkIfFundingCompleteOrExpired();
+        checkIfFundingCompleteOrExpired(); //Execute state checks
     }
 
     /**
     * @notice Funtion to let users claim their tokens at the end of ico process
     */
     function claimTokensByUser() public{
-        require(state == State.Successful);
-        uint256 temp = pending[msg.sender];
-        pending[msg.sender] = 0;
-        require(tokenReward.transfer(msg.sender,temp));
-        emit LogContributorsPayout(msg.sender,temp);
+        require(state == State.Successful); //Once ico is successful
+        uint256 temp = pending[msg.sender]; //Get the user pending balance
+        pending[msg.sender] = 0; //Clear it
+        require(tokenReward.transfer(msg.sender,temp)); //Try to transfer
+        emit LogContributorsPayout(msg.sender,temp); //Log the claim
     }
 
     /**
     * @notice Funtion to let admins claim users tokens on behalf of them at the end of ico process
+    * @param _user Target user of token claim
     */
     function claimTokensByAdmin(address _user) onlyAdmin(1) public{
-        require(state == State.Successful);
-        uint256 temp = pending[_user];
-        pending[_user] = 0;
-        require(tokenReward.transfer(_user,temp));
-        emit LogContributorsPayout(_user,temp);
+        require(state == State.Successful); //Once ico is successful
+        uint256 temp = pending[_user]; //Get the user pending balance
+        pending[_user] = 0; //Clear it
+        require(tokenReward.transfer(_user,temp)); //Try to transfer
+        emit LogContributorsPayout(_user,temp); //Log the claim
     }
 
     /**
@@ -230,10 +234,9 @@ contract TECHICO is admined {
     */
     function checkIfFundingCompleteOrExpired() public {
 
-        if ( (totalDistributed == hardCap || now > SaleDeadline) && state != State.Successful){
+        if ( (totalDistributed == hardCap || now > SaleDeadline) && state != State.Successful){ //If hardacap or deadline is reached and not yet successful
 
-            //remanent tokens are assigned to creator for later handle
-            pending[creator] = tokenReward.balanceOf(address(this)).sub(totalDistributed);
+            pending[creator] = tokenReward.balanceOf(address(this)).sub(totalDistributed); //remanent tokens are assigned to creator for later handle
 
             state = State.Successful; //ICO becomes Successful
             completedAt = now; //ICO is complete
@@ -241,21 +244,21 @@ contract TECHICO is admined {
             emit LogFundingSuccessful(totalRaised); //we log the finish
             successful(); //and execute closure
 
-        } else if(state == State.Stage1 && totalDistributed > 7200000*10**18 ) { //7.200.000*0.25=1.8M$
+        } else if(state == State.Stage1 && totalDistributed > 7200000*10**18 ) { //If tokens sold are equal or greater than 7.200.000*0.25=1.8M$
 
-            state = State.Stage2;
+            state = State.Stage2; //We get on next stage
 
-        } else if(state == State.Stage2 && totalDistributed > 11200000*10**18 ) { //11.200.000*0.25=2.8M$
+        } else if(state == State.Stage2 && totalDistributed > 11200000*10**18 ) { //If tokens sold are equal or greater than 11.200.000*0.25=2.8M$
 
-            state = State.Stage3;
+            state = State.Stage3; //We get on next stage
 
-        } else if(state == State.Stage3 && totalDistributed > 15200000*10**18) { //15.200.000*0.25=3.8M$
+        } else if(state == State.Stage3 && totalDistributed > 15200000*10**18) { //If tokens sold are equal or greater than 15.200.000*0.25=3.8M$
 
-            state = State.Stage4;
+            state = State.Stage4; //We get on next stage
 
-        } else if(state == State.Stage4 && totalDistributed > 22000000*10**18) { //22.000.000*0.25=5.5M$
+        } else if(state == State.Stage4 && totalDistributed > 22000000*10**18) { //If tokens sold are equal or greater than 22.000.000*0.25=5.5M$
 
-            state = State.Stage5;
+            state = State.Stage5; //We get on next stage
 
         }
     }
@@ -264,28 +267,26 @@ contract TECHICO is admined {
     * @notice successful closure handler
     */
     function successful() public {
-        //When successful
-        require(state == State.Successful);
-        //Remanent tokens handle
-        uint256 temp = pending[creator];
-        pending[creator] = 0;
-        require(tokenReward.transfer(creator,temp));
+        require(state == State.Successful); //When successful
+        uint256 temp = pending[creator]; //Remanent tokens handle
+        pending[creator] = 0; //Clear user balance
+        require(tokenReward.transfer(creator,temp)); //Try to transfer
 
-        emit LogContributorsPayout(creator,temp);
+        emit LogContributorsPayout(creator,temp); //Log transaction
 
-        //After successful eth is send to creator
-        creator.transfer(address(this).balance);
+        creator.transfer(address(this).balance); //After successful eth is send to creator
 
-        emit LogBeneficiaryPaid(creator);
+        emit LogBeneficiaryPaid(creator); //Log transaction
 
     }
 
     /**
     * @notice Function to claim any token stuck on contract
+    * @param _address Address of target token
     */
     function externalTokensRecovery(ERC20Basic _address) onlyAdmin(2) public{
         require(state == State.Successful); //Only when sale finish
-        require(_address != address(tokenReward));
+        require(_address != address(tokenReward)); //Target token must be different from token on sale
 
         uint256 remainder = _address.balanceOf(this); //Check remainder tokens
         _address.transfer(msg.sender,remainder); //Transfer tokens to admin
@@ -297,7 +298,7 @@ contract TECHICO is admined {
     */
     function () public payable {
 
-        contribute();
+        contribute(); //Forward to contribute function
 
     }
 }

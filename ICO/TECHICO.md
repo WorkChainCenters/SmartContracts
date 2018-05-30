@@ -61,51 +61,51 @@
   * 0 is a normal user
   * 1 is a basic admin
   * 2 is a master admin
-  
+
   The administration contract let a master admin to set new admins. Also it implements a modifier to limit functions execution to a minimal admin level user.
 
-    `/**
-     * @title admined
-     * @notice This contract is administered
-     */
-    contract admined {
-        mapping(address => uint8) public level;
-        //0 normal user
-        //1 basic admin
-        //2 master admin
+        `/**
+         * @title admined
+         * @notice This contract is administered
+         */
+        contract admined {
+            mapping(address => uint8) public level;
+            //0 normal user
+            //1 basic admin
+            //2 master admin
 
-        /**
-        * @dev This contructor takes the msg.sender as the first master admin
-        */
-        constructor() internal {
-            level[msg.sender] = 2; //Set initial admin to contract creator
-            emit AdminshipUpdated(msg.sender,2);
-        }
+            /**
+            * @dev This contructor takes the msg.sender as the first master admin
+            */
+            constructor() internal {
+                level[msg.sender] = 2; //Set initial admin to contract creator
+                emit AdminshipUpdated(msg.sender,2);
+            }
 
-        /**
-        * @dev This modifier limits function execution to the admin
-        */
-        modifier onlyAdmin(uint8 _level) { //A modifier to define admin-only functions
-            require(level[msg.sender] >= _level );
-            _;
-        }
+            /**
+            * @dev This modifier limits function execution to the admin
+            */
+            modifier onlyAdmin(uint8 _level) { //A modifier to define admin-only functions
+                require(level[msg.sender] >= _level );
+                _;
+            }
 
-        /**
-        * @notice This function transfer the adminship of the contract to _newAdmin
-        * @param _newAdmin The new admin of the contract
-        */
-        function adminshipLevel(address _newAdmin, uint8 _level) onlyAdmin(2) public { //Admin can be set
-            require(_newAdmin != address(0));
-            level[_newAdmin] = _level;
-            emit AdminshipUpdated(_newAdmin,_level);
-        }
+            /**
+            * @notice This function transfer the adminship of the contract to _newAdmin
+            * @param _newAdmin The new admin of the contract
+            */
+            function adminshipLevel(address _newAdmin, uint8 _level) onlyAdmin(2) public { //Admin can be set
+                require(_newAdmin != address(0));
+                level[_newAdmin] = _level;
+                emit AdminshipUpdated(_newAdmin,_level);
+            }
 
-        /**
-        * @dev Log Events
-        */
-        event AdminshipUpdated(address _newAdmin, uint8 _level);
+            /**
+            * @dev Log Events
+            */
+            event AdminshipUpdated(address _newAdmin, uint8 _level);
 
-    }`
+        }`
 
 ## ICO Contract basic variables
 
@@ -127,7 +127,7 @@
     }`
 
   The public variables are viewable by any users, they are:
-  
+
     `//Time-state Related
     State public state = State.Stage1; //Set initial stage
     uint256 constant public SaleStart = 1527879600; //Human time (GMT): Friday, 1 de June de 2018 19:00:00
