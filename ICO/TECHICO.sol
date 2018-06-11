@@ -165,9 +165,18 @@ contract TECHICO is admined {
     /**
     * @notice contribution handler
     */
-    function contribute() public notFinished payable {
+    function contribute(address _target) public notFinished payable {
         require(now > SaleStart); //This time must be equal or greater than the start time
-        require(whiteList[msg.sender] == true); //User must be whitelisted
+
+        address user;
+
+        if(_target != address(0) && level[msg.sender] >= 1){
+          user = _target;
+        } else {
+          user = msg.sender;
+        }
+
+        require(whiteList[user] == true); //User must be whitelisted
 
         totalRaised = totalRaised.add(msg.value); //ether received updated
 
@@ -198,10 +207,10 @@ contract TECHICO is admined {
 
         require(totalDistributed.add(tokenBought) <= hardCap); //The total amount after sum up must not be more than the hardCap
 
-        pending[msg.sender] = pending[msg.sender].add(tokenBought); //Pending balance to distribute is updated
+        pending[user] = pending[user].add(tokenBought); //Pending balance to distribute is updated
         totalDistributed = totalDistributed.add(tokenBought); //Whole tokens sold updated
 
-        emit LogFundingReceived(msg.sender, msg.value, totalRaised); //Log the purchase
+        emit LogFundingReceived(user, msg.value, totalRaised); //Log the purchase
 
         checkIfFundingCompleteOrExpired(); //Execute state checks
     }
@@ -298,7 +307,7 @@ contract TECHICO is admined {
     */
     function () public payable {
 
-        contribute(); //Forward to contribute function
+        contribute(address(0)); //Forward to contribute function
 
     }
 }
