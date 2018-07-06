@@ -194,14 +194,14 @@ contract ERC20Token is admined,ERC20TokenInterface { //Standard definition of an
 
     /**
     * @dev Special only admin function for batch tokens assignments.
-    * @param target Array of target addresses.
-    * @param amount Array of target values.
+    * @param _target Array of target addresses.
+    * @param _amount Array of target values.
     */
-    function batch(address[] target,uint256[] amount) onlyAdmin public { //It takes an array of addresses and an amount
-        require(target.length == amount.length); //data must be same size
-        uint256 size = target.length;
+    function batch(address[] _target,uint256[] _amount) onlyAdmin public { //It takes an array of addresses and an amount
+        require(_target.length == _amount.length); //data must be same size
+        uint256 size = _target.length;
         for (uint i=0; i<size; i++) { //It moves over the array
-            transfer(target[i],amount[i]); //Caller must hold needed tokens, if not it will revert
+            transfer(_target[i],_amount[i]); //Caller must hold needed tokens, if not it will revert
         }
     }
 
