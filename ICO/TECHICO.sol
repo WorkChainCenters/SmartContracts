@@ -96,21 +96,18 @@ contract admined {
 contract TECHICO is admined {
 
     using SafeMath for uint256;
-    //This ico have 5 possible states and a Successful state
+    //This ico have these possible states
     enum State {
-        Stage1,
-        Stage2,
-        Stage3,
-        Stage4,
-        Stage5,
+        MainSale,
+        Paused,
         Successful
     }
     //Public variables
 
     //Time-state Related
-    State public state = State.Stage1; //Set initial stage
+    State public state = State.MainSale; //Set initial stage
     uint256 constant public SaleStart = 1527879600; //Human time (GMT): Friday, 1 de June de 2018 19:00:00
-    uint256 public SaleDeadline = 1533063600; //Human time (GMT): Tuesday, 31 de July de 2018 19:00:00
+    uint256 public SaleDeadline = 1535569200; //Human time (GMT): Wednesday, 29 August 2018 19:00:00
     uint256 public completedAt; //Set when ico finish
     //Token-eth related
     uint256 public totalRaised; //eth collected in wei
@@ -120,13 +117,21 @@ contract TECHICO is admined {
     mapping(address => uint256) public pending; //tokens pending to being transfered
     //Contract details
     address public creator; //Creator address
-    string public version = '0.1'; //Contract version
+    string public version = '2'; //Contract version
+    //Bonus Related - How much tokens per bonus
+    uint256 bonus1Remain = 1440000*10**18; //+20%
+    uint256 bonus2Remain = 2380000*10**18; //+15%
+    uint256 bonus3Remain = 3420000*10**18; //+10%
+    uint256 bonus4Remain = 5225000*10**18; //+5%
+
+    uint256 remainingActualState;
+    State laststate;
 
     //User rights handlers
     mapping (address => bool) public whiteList; //List of allowed to send eth
 
     //Price related
-    uint256 rate = 3000; //Tokens per ether unit
+    uint256 rate = 3000; //3000 tokens per ether unit
 
     //events for log
     event LogFundrisingInitialized(address _creator);
@@ -134,10 +139,11 @@ contract TECHICO is admined {
     event LogBeneficiaryPaid(address _beneficiaryAddress);
     event LogContributorsPayout(address _addr, uint _amount);
     event LogFundingSuccessful(uint _totalRaised);
+    event LogSalePaused(bool _paused);
 
     //Modifier to prevent execution if ico has ended or is holded
     modifier notFinished() {
-        require(state != State.Successful);
+        require(state != State.Successful && state != State.Paused);
         _;
     }
 
@@ -149,8 +155,27 @@ contract TECHICO is admined {
 
         creator = msg.sender; //Creator is set from deployer address
         tokenReward = _addressOfTokenUsedAsReward; //Token address is set during deployment
-
         emit LogFundrisingInitialized(creator); //Log contract initialization
+
+        //PreSale tokens already sold = 4.720.047 tokens
+        pending[0x8eBBcb4c4177941428E9E9E68C4914fb5A89650E] = 4720047000000000000002000;
+        //To no exceed total tokens to sell, update numbers - bonuses not affected
+        totalDistributed = 4720047000000000000002000;
+
+    }
+
+    /**
+    * @notice Check remaining and cost function
+    * @dev The cost function doesn't include the bonuses calculation
+    */
+    function remainingTokensAndCost() public view returns (uint256[2]){
+        uint256 remaining = hardCap.sub(totalDistributed);
+        uint256 cost = remaining.sub((bonus1Remain.mul(2)).div(10));
+        cost = cost.sub((bonus2Remain.mul(15)).div(100));
+        cost = cost.sub(bonus3Remain.div(10));
+        cost = cost.sub((bonus4Remain.mul(5)).div(100));
+        cost = cost.div(3000);
+        return [remaining,cost];
     }
 
     /**
@@ -162,18 +187,41 @@ contract TECHICO is admined {
         whiteList[_user] = _flag; //Assign status to user on whitelist
     }
 
+
+    /**
+    * @notice Pause function
+    * @param _flag Pause status to set
+    */
+    function pauseSale(bool _flag) onlyAdmin(2) public {
+        require(state != State.Successful);
+
+        if(_flag == true){
+            require(state != State.Paused);
+            laststate = state;
+            remainingActualState = SaleDeadline.sub(now);
+            state = State.Paused;
+            emit LogSalePaused(true);
+        } else {
+            require(state == State.Paused);
+            state = laststate;
+            SaleDeadline = now.add(remainingActualState);
+            emit LogSalePaused(false);
+        }
+    }
+
     /**
     * @notice contribution handler
     */
     function contribute(address _target) public notFinished payable {
         require(now > SaleStart); //This time must be equal or greater than the start time
 
+        //To handle admin guided contributions
         address user;
-
+        //Let's if user is an admin and is givin a valid target
         if(_target != address(0) && level[msg.sender] >= 1){
           user = _target;
         } else {
-          user = msg.sender;
+          user = msg.sender; //If not the user is the sender
         }
 
         require(whiteList[user] == true); //User must be whitelisted
@@ -182,28 +230,84 @@ contract TECHICO is admined {
 
         uint256 tokenBought = msg.value.mul(rate); //base tokens amount calculation
 
-        //Bonus calculation
-        if(state == State.Stage1){ //If current stage is 1
-            //+20% bonus
-            tokenBought = tokenBought.mul(12);
-            tokenBought = tokenBought.div(10); // 1.2 = 120% = 100+20%
+        //Bonus calc helpers
+        uint256 bonus = 0; //How much bonus for this sale
+        uint256 buyHelper = tokenBought; //Base tokens bought
 
-        } else if(state == State.Stage2) { //If current stage is 2
-            //+15% bonus
-            tokenBought = tokenBought.mul(115);
-            tokenBought = tokenBought.div(100); // 1.15 = 115% = 100+15%
+        //Bonus Stage 1
+        if(bonus1Remain > 0){ //If there still are some tokens with bonus
 
-        } else if(state == State.Stage3) { //If current stage is 3
-            //+10 bonus
-            tokenBought = tokenBought.mul(11);
-            tokenBought = tokenBought.div(10); // 1.1 = 110% = 100+10%
-
-        } else if(state == State.Stage4) { //If current stage is 4
-            //+5% bonus
-            tokenBought = tokenBought.mul(105);
-            tokenBought = tokenBought.div(100); // 1.05 = 105% = 100+5%
+          //Lets check if tokens bought are less or more than remaining available
+          //tokens whit bonus
+          if(buyHelper <= bonus1Remain){ //If purchase is less
+              bonus1Remain = bonus1Remain.sub(buyHelper); //Sub from remaining
+              //Calculate the bonus for the total bought amount
+              bonus = bonus.add((buyHelper.mul(2)).div(10));//+20%
+              buyHelper = 0; //Clear buy helper
+          }else{ //If purchase is more
+              buyHelper = buyHelper.sub(bonus1Remain); //Sub from purchase helper the remaining
+              //Calculate bonus for the remaining bonus tokens
+              bonus = bonus.add((bonus1Remain.mul(2)).div(10));//+20%
+              bonus1Remain = 0; //Clear bonus remaining tokens
+          }
 
         }
+
+        //Lets check if tokens bought are less or more than remaining available
+        //tokens whit bonus
+        if(bonus2Remain > 0 && buyHelper > 0){
+
+          if(buyHelper <= bonus2Remain){ //If purchase is less
+              bonus2Remain = bonus2Remain.sub(buyHelper);//Sub from remaining
+              //Calculate the bonus for the total bought amount
+              bonus = bonus.add((buyHelper.mul(15)).div(100));//+15%
+              buyHelper = 0; //Clear buy helper
+          }else{ //If purchase is more
+              buyHelper = buyHelper.sub(bonus2Remain);//Sub from purchase helper the remaining
+              //Calculate bonus for the remaining bonus tokens
+              bonus = bonus.add((bonus2Remain.mul(15)).div(100));//+15%
+              bonus2Remain = 0; //Clear bonus remaining tokens
+          }
+
+        }
+
+        //Lets check if tokens bought are less or more than remaining available
+        //tokens whit bonus
+        if(bonus3Remain > 0 && buyHelper > 0){
+
+          if(buyHelper <= bonus3Remain){ //If purchase is less
+              bonus3Remain = bonus3Remain.sub(buyHelper);//Sub from remaining
+              //Calculate the bonus for the total bought amount
+              bonus = bonus.add(buyHelper.div(10));//+10%
+              buyHelper = 0; //Clear buy helper
+          }else{ //If purchase is more
+              buyHelper = buyHelper.sub(bonus3Remain);//Sub from purchase helper the remaining
+              //Calculate bonus for the remaining bonus tokens
+              bonus = bonus.add(bonus3Remain.div(10));//+10%
+              bonus3Remain = 0; //Clear bonus remaining tokens
+          }
+
+        }
+
+        //Lets check if tokens bought are less or more than remaining available
+        //tokens whit bonus
+        if(bonus4Remain > 0 && buyHelper > 0){
+
+          if(buyHelper <= bonus4Remain){ //If purchase is less
+              bonus4Remain = bonus4Remain.sub(buyHelper);//Sub from remaining
+              //Calculate the bonus for the total bought amount
+              bonus = bonus.add((buyHelper.mul(5)).div(100));//+5%
+              buyHelper = 0; //Clear buy helper
+          }else{ //If purchase is more
+              buyHelper = buyHelper.sub(bonus4Remain);//Sub from purchase helper the remaining
+              //Calculate bonus for the remaining bonus tokens
+              bonus = bonus.add((bonus4Remain.mul(5)).div(100));//+5%
+              bonus4Remain = 0; //Clear bonus remaining tokens
+          }
+
+        }
+
+        tokenBought = tokenBought.add(bonus); //Sum Up Bonus(es) to base purchase
 
         require(totalDistributed.add(tokenBought) <= hardCap); //The total amount after sum up must not be more than the hardCap
 
@@ -242,32 +346,18 @@ contract TECHICO is admined {
     * @notice Process to check contract current status
     */
     function checkIfFundingCompleteOrExpired() public {
-
-        if ( (totalDistributed == hardCap || now > SaleDeadline) && state != State.Successful){ //If hardacap or deadline is reached and not yet successful
-
-            pending[creator] = tokenReward.balanceOf(address(this)).sub(totalDistributed); //remanent tokens are assigned to creator for later handle
+         //If hardacap or deadline is reached and not yet successful
+        if ( (totalDistributed == hardCap || now > SaleDeadline)
+            && state != State.Successful
+            && state != State.Paused) {
+            //remanent tokens are assigned to creator for later handle
+            pending[creator] = tokenReward.balanceOf(address(this)).sub(totalDistributed);
 
             state = State.Successful; //ICO becomes Successful
             completedAt = now; //ICO is complete
 
             emit LogFundingSuccessful(totalRaised); //we log the finish
             successful(); //and execute closure
-
-        } else if(state == State.Stage1 && totalDistributed > 7200000*10**18 ) { //If tokens sold are equal or greater than 7.200.000*0.25=1.8M$
-
-            state = State.Stage2; //We get on next stage
-
-        } else if(state == State.Stage2 && totalDistributed > 11200000*10**18 ) { //If tokens sold are equal or greater than 11.200.000*0.25=2.8M$
-
-            state = State.Stage3; //We get on next stage
-
-        } else if(state == State.Stage3 && totalDistributed > 15200000*10**18) { //If tokens sold are equal or greater than 15.200.000*0.25=3.8M$
-
-            state = State.Stage4; //We get on next stage
-
-        } else if(state == State.Stage4 && totalDistributed > 22000000*10**18) { //If tokens sold are equal or greater than 22.000.000*0.25=5.5M$
-
-            state = State.Stage5; //We get on next stage
 
         }
     }
@@ -283,7 +373,7 @@ contract TECHICO is admined {
 
         emit LogContributorsPayout(creator,temp); //Log transaction
 
-        creator.transfer(address(this).balance); //After successful eth is send to creator
+        creator.transfer(address(this).balance); //After successful, eth is send to creator
 
         emit LogBeneficiaryPaid(creator); //Log transaction
 
